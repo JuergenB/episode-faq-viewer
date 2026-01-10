@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQ Generator - Processing</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #f5f8ff 0%, #ffffff 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 700px;
+            width: 100%;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .logo {
+            max-width: 180px;
+            margin: 0 auto 30px;
+            opacity: 0.95;
+        }
+
+        .logo img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #1a1a1a;
+            font-size: 24px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .workflow-type {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+
+        /* Progress Bar */
+        .progress-section {
+            margin: 30px 0;
+        }
+
+        .progress-bar-container {
+            background: #f0f0f0;
+            border-radius: 10px;
+            height: 8px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #0399FE 0%, #0379C4 100%);
+            border-radius: 10px;
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            font-size: 12px;
+            color: #999;
+            margin-top: 8px;
+        }
+
+        /* Status Messages */
+        .status-messages {
+            text-align: left;
+            margin: 30px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            border-left: 4px solid #0399FE;
+        }
+
+        .status-message {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            font-size: 14px;
+            color: #666;
+            transition: all 0.3s ease;
+        }
+
+        .status-message:last-child {
+            margin-bottom: 0;
+        }
+
+        .status-icon {
+            min-width: 20px;
+            height: 20px;
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-icon.pending {
+            background: #ddd;
+            color: #999;
+        }
+
+        .status-icon.active {
+            background: #0399FE;
+            color: white;
+        }
+
+        .status-icon.complete {
+            background: #0379C4;
+            color: white;
+        }
+
+        .status-icon.active .spinner {
+            display: inline-block;
+        }
+
+        .spinner {
+            width: 10px;
+            height: 10px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-message.pending {
+            opacity: 0.5;
+        }
+
+        .status-message.active {
+            opacity: 1;
+            color: #0399FE;
+            font-weight: 500;
+        }
+
+        .status-message.complete {
+            opacity: 1;
+            color: #0379C4;
+        }
+
+        /* Results Display */
+        .results-section {
+            display: none;
+            text-align: left;
+            margin-top: 30px;
+        }
+
+        .results-section.show {
+            display: block;
+        }
+
+        .results-header {
+            color: #0379C4;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .results-content {
+            background: #f9f9f9;
+            padding: 25px;
+            border-radius: 8px;
+            max-height: 500px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+
+        /* FAQ Styling */
+        .results-content h2 {
+            color: #1a1a1a;
+            font-size: 20px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #0399FE;
+        }
+
+        .results-content h3 {
+            color: #333;
+            font-size: 16px;
+            margin: 20px 0 10px 0;
+            font-weight: 600;
+        }
+
+        .results-content p {
+            color: #555;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        /* Code view toggle */
+        .view-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .view-toggle button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .view-toggle button.active {
+            background: #0399FE;
+            color: white;
+            border-color: #0399FE;
+        }
+
+        .view-toggle button:hover:not(.active) {
+            background: #f0f0f0;
+        }
+
+        .code-view {
+            display: none;
+            background: #2d2d2d;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+
+        .code-view.show {
+            display: block;
+        }
+
+        .code-view pre {
+            color: #f8f8f2;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin: 0;
+        }
+
+        .rendered-view {
+            display: block;
+        }
+
+        .rendered-view.hide {
+            display: none;
+        }
+
+        /* Buttons */
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            flex: 1;
+            min-width: 120px;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #0399FE;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #0379C4;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #666;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #e0e0e0;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Error State */
+        .error-state {
+            display: none;
+            background: #fee;
+            border-left: 4px solid #c00;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .error-state.show {
+            display: block;
+        }
+
+        .error-state h3 {
+            color: #c00;
+            margin-bottom: 10px;
+        }
+
+        .error-state p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        /* Expired State */
+        .expired-state {
+            display: none;
+            background: #fef3cd;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .expired-state.show {
+            display: block;
+        }
+
+        .expired-state h3 {
+            color: #ff9800;
+            margin-bottom: 10px;
+        }
+
+        /* No Job State */
+        .no-job-state {
+            display: none;
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .no-job-state.show {
+            display: block;
+        }
+
+        .no-job-state h3 {
+            color: #1976D2;
+            margin-bottom: 10px;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 25px;
+            }
+
+            h1 {
+                font-size: 20px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Logo -->
+        <div class="logo">
+            <img src="https://polymash.com/wp-content/uploads/2019/07/Polymash-Logo-2019-340px-Web.png"
+                 alt="Polymash Logo">
+        </div>
+
+        <!-- Title -->
+        <h1 id="title">Generating Your FAQ</h1>
+        <p class="workflow-type" id="workflowType">Podcast Episode FAQ Generator</p>
+
+        <!-- Progress Bar -->
+        <div class="progress-section" id="progressSection">
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="progress-text" id="progressText">Starting...</div>
+        </div>
+
+        <!-- Status Messages -->
+        <div class="status-messages" id="statusMessages">
+            <div class="status-message active">
+                <span class="status-icon active"><span class="spinner"></span></span>
+                <span>Connecting to server...</span>
+            </div>
+        </div>
+
+        <!-- No Job State -->
+        <div class="no-job-state" id="noJobState">
+            <h3>No Job ID Found</h3>
+            <p>This page requires a job ID to display results. Please submit the form to generate an FAQ.</p>
+        </div>
+
+        <!-- Error State -->
+        <div class="error-state" id="errorState">
+            <h3>Processing Failed</h3>
+            <p id="errorMessage">An error occurred during processing. Please try again.</p>
+        </div>
+
+        <!-- Expired State -->
+        <div class="expired-state" id="expiredState">
+            <h3>Job Not Found</h3>
+            <p>This job may have expired or doesn't exist. Results are stored for approximately 1 hour. Please submit the form again to generate new results.</p>
+        </div>
+
+        <!-- Results Display -->
+        <div class="results-section" id="resultsSection">
+            <div class="results-header">✓ Your FAQ is Ready!</div>
+            
+            <div class="view-toggle">
+                <button class="active" onclick="showRenderedView()">Preview</button>
+                <button onclick="showCodeView()">HTML Code</button>
+            </div>
+
+            <div class="results-content rendered-view" id="renderedView">
+                <!-- FAQ HTML will be rendered here -->
+            </div>
+
+            <div class="code-view" id="codeView">
+                <pre id="codeContent"></pre>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-primary" id="copyBtn" onclick="copyHTML()">Copy HTML</button>
+                <button class="btn-secondary" onclick="downloadHTML()">Download HTML</button>
+            </div>
+        </div>
+
+        <!-- Action Buttons (shown during processing) -->
+        <div class="button-group" id="actionButtons" style="display: none;">
+            <button class="btn-secondary" onclick="window.close()">Close Window</button>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // CONFIGURATION - Update this URL after creating the status webhook
+        // ============================================
+        const CONFIG = {
+            STATUS_WEBHOOK_URL: 'https://polymash.app.n8n.cloud/webhook/faq-status',
+            POLL_INTERVAL: 2500,      // Poll every 2.5 seconds
+            MAX_POLL_TIME: 600000,    // Stop polling after 10 minutes
+        };
+
+        // ============================================
+        // STATE
+        // ============================================
+        let state = {
+            jobId: null,
+            status: 'initializing',
+            progress: 0,
+            message: '',
+            html: null,
+            startTime: null,
+            pollingInterval: null,
+            pollCount: 0,
+        };
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeFromURL();
+        });
+
+        function initializeFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            state.jobId = params.get('job_id');
+
+            if (!state.jobId) {
+                showNoJobState();
+                return;
+            }
+
+            state.startTime = Date.now();
+            startPolling();
+        }
+
+        // ============================================
+        // POLLING
+        // ============================================
+        function startPolling() {
+            // Initial poll immediately
+            pollStatus();
+            
+            // Then poll at interval
+            state.pollingInterval = setInterval(() => {
+                // Check for timeout
+                if (Date.now() - state.startTime > CONFIG.MAX_POLL_TIME) {
+                    clearInterval(state.pollingInterval);
+                    showError('Processing is taking longer than expected. Please check back later or try again.');
+                    return;
+                }
+                
+                pollStatus();
+            }, CONFIG.POLL_INTERVAL);
+        }
+
+        async function pollStatus() {
+            state.pollCount++;
+            
+            try {
+                const url = `${CONFIG.STATUS_WEBHOOK_URL}?job_id=${encodeURIComponent(state.jobId)}`;
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                });
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        showExpiredState();
+                        clearInterval(state.pollingInterval);
+                        return;
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // Check if job not found
+                if (data.error === 'not_found') {
+                    showExpiredState();
+                    clearInterval(state.pollingInterval);
+                    return;
+                }
+
+                // Update state from response
+                state.status = data.status || state.status;
+                state.progress = data.progress || state.progress;
+                state.message = data.message || state.message;
+                
+                if (data.html) {
+                    state.html = data.html;
+                }
+
+                // Update UI
+                updateUI();
+
+                // Check for completion
+                if (state.status === 'complete' || state.status === 'error') {
+                    clearInterval(state.pollingInterval);
+                    
+                    if (state.status === 'error') {
+                        showError(data.error_message || 'An error occurred during processing.');
+                    }
+                }
+
+            } catch (error) {
+                console.error('Polling error:', error);
+                
+                // Don't show error immediately - could be transient
+                if (state.pollCount > 3 && state.status === 'initializing') {
+                    showError('Unable to connect to the server. Please check your connection and try again.');
+                    clearInterval(state.pollingInterval);
+                }
+            }
+        }
+
+        // ============================================
+        // UI UPDATES
+        // ============================================
+        function updateUI() {
+            // Update title based on status
+            const titles = {
+                initializing: 'Generating Your FAQ',
+                started: 'Generating Your FAQ',
+                processing: 'Generating Your FAQ',
+                complete: 'FAQ Generated!',
+                error: 'Generation Failed',
+            };
+            document.getElementById('title').textContent = titles[state.status] || titles.processing;
+
+            // Update progress bar
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.width = state.progress + '%';
+            document.getElementById('progressText').textContent = state.message || `${state.progress}% complete`;
+
+            // Update status messages
+            updateStatusMessages();
+
+            // Show results if complete
+            if (state.status === 'complete' && state.html) {
+                showResults();
+            }
+        }
+
+        function updateStatusMessages() {
+            const container = document.getElementById('statusMessages');
+            
+            // Define the steps based on progress thresholds
+            const steps = [
+                { threshold: 5, label: 'Form received' },
+                { threshold: 10, label: 'Checking for audio content' },
+                { threshold: 15, label: 'Starting audio transcription' },
+                { threshold: 25, label: 'Transcribing audio' },
+                { threshold: 40, label: 'Transcription complete' },
+                { threshold: 50, label: 'Scraping episode page' },
+                { threshold: 60, label: 'Analyzing podcast homepage' },
+                { threshold: 70, label: 'Gathering about page info' },
+                { threshold: 80, label: 'Preparing FAQ data' },
+                { threshold: 90, label: 'Generating FAQ with AI' },
+                { threshold: 100, label: 'Complete!' },
+            ];
+
+            // Find which steps are complete, active, or pending
+            let html = '';
+            let foundActive = false;
+
+            for (let i = 0; i < steps.length; i++) {
+                const step = steps[i];
+                const nextThreshold = steps[i + 1]?.threshold || 101;
+                
+                let statusClass, icon;
+
+                if (state.progress >= nextThreshold) {
+                    // This step is complete
+                    statusClass = 'complete';
+                    icon = '✓';
+                } else if (state.progress >= step.threshold && !foundActive) {
+                    // This is the active step
+                    statusClass = 'active';
+                    icon = '<span class="spinner"></span>';
+                    foundActive = true;
+                } else if (foundActive || state.progress < step.threshold) {
+                    // Skip pending steps - only show completed and active
+                    continue;
+                }
+
+                html += `
+                    <div class="status-message ${statusClass}">
+                        <span class="status-icon ${statusClass}">${icon}</span>
+                        <span>${step.label}</span>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html || `
+                <div class="status-message active">
+                    <span class="status-icon active"><span class="spinner"></span></span>
+                    <span>Connecting...</span>
+                </div>
+            `;
+        }
+
+        function showResults() {
+            // Hide progress section
+            document.getElementById('progressSection').style.display = 'none';
+            document.getElementById('statusMessages').style.display = 'none';
+
+            // Show results
+            const resultsSection = document.getElementById('resultsSection');
+            resultsSection.classList.add('show');
+
+            // Render the HTML
+            document.getElementById('renderedView').innerHTML = state.html;
+            document.getElementById('codeContent').textContent = state.html;
+
+            // Show close button
+            document.getElementById('actionButtons').style.display = 'flex';
+        }
+
+        function showNoJobState() {
+            document.getElementById('progressSection').style.display = 'none';
+            document.getElementById('statusMessages').style.display = 'none';
+            document.getElementById('noJobState').classList.add('show');
+        }
+
+        function showExpiredState() {
+            document.getElementById('progressSection').style.display = 'none';
+            document.getElementById('statusMessages').style.display = 'none';
+            document.getElementById('expiredState').classList.add('show');
+            document.getElementById('actionButtons').style.display = 'flex';
+        }
+
+        function showError(message) {
+            document.getElementById('progressSection').style.display = 'none';
+            document.getElementById('statusMessages').style.display = 'none';
+            document.getElementById('errorState').classList.add('show');
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('actionButtons').style.display = 'flex';
+        }
+
+        // ============================================
+        // VIEW TOGGLE
+        // ============================================
+        function showRenderedView() {
+            document.getElementById('renderedView').classList.remove('hide');
+            document.getElementById('codeView').classList.remove('show');
+            document.querySelectorAll('.view-toggle button').forEach(btn => btn.classList.remove('active'));
+            document.querySelector('.view-toggle button:first-child').classList.add('active');
+        }
+
+        function showCodeView() {
+            document.getElementById('renderedView').classList.add('hide');
+            document.getElementById('codeView').classList.add('show');
+            document.querySelectorAll('.view-toggle button').forEach(btn => btn.classList.remove('active'));
+            document.querySelector('.view-toggle button:last-child').classList.add('active');
+        }
+
+        // ============================================
+        // COPY & DOWNLOAD
+        // ============================================
+        function copyHTML() {
+            navigator.clipboard.writeText(state.html).then(() => {
+                const btn = document.getElementById('copyBtn');
+                const originalText = btn.textContent;
+                btn.textContent = '✓ Copied!';
+                btn.style.background = '#0379C4';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = '';
+                }, 2000);
+            }).catch(err => {
+                // Fallback for older browsers
+                const textarea = document.createElement('textarea');
+                textarea.value = state.html;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                
+                const btn = document.getElementById('copyBtn');
+                btn.textContent = '✓ Copied!';
+                setTimeout(() => {
+                    btn.textContent = 'Copy HTML';
+                }, 2000);
+            });
+        }
+
+        function downloadHTML() {
+            const blob = new Blob([state.html], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `faq-${state.jobId}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
