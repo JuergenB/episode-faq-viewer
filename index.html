@@ -276,6 +276,26 @@
             display: none;
         }
 
+        /* Email Notice */
+        .email-notice {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #e8f5e9;
+            border: 1px solid #c8e6c9;
+            border-left: 4px solid #4caf50;
+            border-radius: 6px;
+            padding: 12px 16px;
+            margin-top: 15px;
+            font-size: 14px;
+            color: #2e7d32;
+        }
+
+        .email-notice-icon {
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
         /* Buttons */
         .button-group {
             display: flex;
@@ -471,6 +491,12 @@
                 <button class="btn-primary" id="copyBtn" onclick="copyHTML()">Copy HTML</button>
                 <button class="btn-secondary" onclick="downloadHTML()">Download HTML</button>
             </div>
+
+            <!-- Email Notice -->
+            <div class="email-notice">
+                <span class="email-notice-icon">📧</span>
+                <span>A copy of this FAQ has also been sent to your email address.</span>
+            </div>
         </div>
 
         <!-- Action Buttons (shown during processing) -->
@@ -481,7 +507,7 @@
 
     <script>
         // ============================================
-        // CONFIGURATION - Update this URL after creating the status webhook
+        // CONFIGURATION
         // ============================================
         const CONFIG = {
             STATUS_WEBHOOK_URL: 'https://polymash.app.n8n.cloud/webhook/faq-status',
@@ -498,6 +524,7 @@
             progress: 0,
             message: '',
             html: null,
+            hasAudio: null,  // NEW: Track if job has audio transcription
             startTime: null,
             pollingInterval: null,
             pollCount: 0,
@@ -579,6 +606,11 @@
                 state.progress = data.progress || state.progress;
                 state.message = data.message || state.message;
                 
+                // NEW: Capture has_audio flag (only set once, on first valid response)
+                if (state.hasAudio === null && data.has_audio !== undefined) {
+                    state.hasAudio = data.has_audio;
+                }
+                
                 if (data.html) {
                     state.html = data.html;
                 }
@@ -637,20 +669,30 @@
         function updateStatusMessages() {
             const container = document.getElementById('statusMessages');
             
-            // Define the steps based on progress thresholds
-            const steps = [
-                { threshold: 5, label: 'Form received' },
-                { threshold: 10, label: 'Checking for audio content' },
-                { threshold: 15, label: 'Starting audio transcription' },
-                { threshold: 25, label: 'Transcribing audio' },
-                { threshold: 40, label: 'Transcription complete' },
-                { threshold: 50, label: 'Scraping episode page' },
-                { threshold: 60, label: 'Analyzing podcast homepage' },
-                { threshold: 70, label: 'Gathering about page info' },
-                { threshold: 80, label: 'Preparing FAQ data' },
-                { threshold: 90, label: 'Generating FAQ with AI' },
-                { threshold: 100, label: 'Complete!' },
+            // Define ALL steps - transcription steps marked with audioOnly flag
+            const allSteps = [
+                { threshold: 5, label: 'Form received', audioOnly: false },
+                { threshold: 10, label: 'Checking for audio content', audioOnly: false },
+                { threshold: 15, label: 'Starting audio transcription', audioOnly: true },
+                { threshold: 25, label: 'Transcribing audio', audioOnly: true },
+                { threshold: 40, label: 'Transcription complete', audioOnly: true },
+                { threshold: 50, label: 'Scraping episode page', audioOnly: false },
+                { threshold: 60, label: 'Analyzing podcast homepage', audioOnly: false },
+                { threshold: 70, label: 'Gathering about page info', audioOnly: false },
+                { threshold: 80, label: 'Preparing FAQ data', audioOnly: false },
+                { threshold: 90, label: 'Generating FAQ with AI', audioOnly: false },
+                { threshold: 100, label: 'Complete!', audioOnly: false },
             ];
+
+            // Filter steps based on whether job has audio
+            // If hasAudio is null (not yet known), show all steps
+            // If hasAudio is false, filter out audioOnly steps
+            const steps = allSteps.filter(step => {
+                if (state.hasAudio === false && step.audioOnly) {
+                    return false;
+                }
+                return true;
+            });
 
             // Find which steps are complete, active, or pending
             let html = '';
