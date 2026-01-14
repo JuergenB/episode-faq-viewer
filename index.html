@@ -507,14 +507,20 @@
 
     <script>
         // ============================================
-        // CONFIGURATION
+        // CONFIGURATION - OPTIMIZED FOR FEWER EXECUTIONS
         // ============================================
         const CONFIG = {
             STATUS_WEBHOOK_URL: 'https://polymash.app.n8n.cloud/webhook/faq-status',
-            POLL_INTERVAL: 2500,      // Poll every 2.5 seconds
-            MAX_POLL_TIME: 600000,    // Stop polling after 10 minutes
+            MAX_POLL_TIME: 180000,    // 3 minute timeout (was 10 minutes)
+            
+            // Adaptive polling intervals
+            POLLING_PHASES: [
+                { duration: 30000, interval: 5000 },   // First 30s: every 5 seconds
+                { duration: 60000, interval: 10000 },  // 30s-60s: every 10 seconds
+                { duration: Infinity, interval: 15000 } // After 60s: every 15 seconds
+            ]
         };
-
+        
         // ============================================
         // STATE
         // ============================================
@@ -524,54 +530,72 @@
             progress: 0,
             message: '',
             html: null,
-            hasAudio: null,  // NEW: Track if job has audio transcription
+            hasAudio: null,
             startTime: null,
-            pollingInterval: null,
+            pollingTimeout: null,  // Changed from pollingInterval
             pollCount: 0,
         };
-
+        
         // ============================================
         // INITIALIZATION
         // ============================================
         document.addEventListener('DOMContentLoaded', () => {
             initializeFromURL();
         });
-
+        
         function initializeFromURL() {
             const params = new URLSearchParams(window.location.search);
             state.jobId = params.get('job_id');
-
+        
             if (!state.jobId) {
                 showNoJobState();
                 return;
             }
-
+        
             state.startTime = Date.now();
-            startPolling();
+            pollStatus(); // Start polling immediately
         }
-
+        
         // ============================================
-        // POLLING
+        // ADAPTIVE POLLING
         // ============================================
-        function startPolling() {
-            // Initial poll immediately
-            pollStatus();
+        function getPollingInterval() {
+            const elapsed = Date.now() - state.startTime;
             
-            // Then poll at interval
-            state.pollingInterval = setInterval(() => {
-                // Check for timeout
-                if (Date.now() - state.startTime > CONFIG.MAX_POLL_TIME) {
-                    clearInterval(state.pollingInterval);
-                    showError('Processing is taking longer than expected. Please check back later or try again.');
-                    return;
+            for (const phase of CONFIG.POLLING_PHASES) {
+                if (elapsed < phase.duration) {
+                    return phase.interval;
                 }
-                
-                pollStatus();
-            }, CONFIG.POLL_INTERVAL);
+            }
+            
+            // Fallback to last phase interval
+            return CONFIG.POLLING_PHASES[CONFIG.POLLING_PHASES.length - 1].interval;
         }
-
+        
+        function scheduleNextPoll() {
+            // Check for timeout
+            if (Date.now() - state.startTime > CONFIG.MAX_POLL_TIME) {
+                showError('Processing is taking longer than expected. Your FAQ may still be generating - please check your email or try refreshing in a few minutes.');
+                return;
+            }
+            
+            const interval = getPollingInterval();
+            state.pollingTimeout = setTimeout(pollStatus, interval);
+        }
+        
+        function stopPolling() {
+            if (state.pollingTimeout) {
+                clearTimeout(state.pollingTimeout);
+                state.pollingTimeout = null;
+            }
+        }
+        
         async function pollStatus() {
             state.pollCount++;
+            
+            // Log polling for debugging (can remove in production)
+            const elapsed = Math.round((Date.now() - state.startTime) / 1000);
+            console.log(`Poll #${state.pollCount} at ${elapsed}s (interval: ${getPollingInterval()/1000}s)`);
             
             try {
                 const url = `${CONFIG.STATUS_WEBHOOK_URL}?job_id=${encodeURIComponent(state.jobId)}`;
@@ -582,31 +606,29 @@
                         'Accept': 'application/json',
                     },
                 });
-
+        
                 if (!response.ok) {
                     if (response.status === 404) {
                         showExpiredState();
-                        clearInterval(state.pollingInterval);
-                        return;
+                        return; // Don't schedule next poll
                     }
                     throw new Error(`HTTP ${response.status}`);
                 }
-
+        
                 const data = await response.json();
                 
                 // Check if job not found
                 if (data.error === 'not_found') {
                     showExpiredState();
-                    clearInterval(state.pollingInterval);
-                    return;
+                    return; // Don't schedule next poll
                 }
-
+        
                 // Update state from response
                 state.status = data.status || state.status;
                 state.progress = data.progress || state.progress;
                 state.message = data.message || state.message;
                 
-                // NEW: Capture has_audio flag (only set once, on first valid response)
+                // Capture has_audio flag (only set once, on first valid response)
                 if (state.hasAudio === null && data.has_audio !== undefined) {
                     state.hasAudio = data.has_audio;
                 }
@@ -614,27 +636,35 @@
                 if (data.html) {
                     state.html = data.html;
                 }
-
+        
                 // Update UI
                 updateUI();
-
-                // Check for completion
-                if (state.status === 'complete' || state.status === 'error') {
-                    clearInterval(state.pollingInterval);
-                    
-                    if (state.status === 'error') {
-                        showError(data.error_message || 'An error occurred during processing.');
-                    }
+        
+                // Check for completion or error
+                if (state.status === 'complete') {
+                    console.log(`Completed in ${state.pollCount} polls over ${elapsed}s`);
+                    return; // Don't schedule next poll
                 }
-
+                
+                if (state.status === 'error') {
+                    showError(data.error_message || 'An error occurred during processing.');
+                    return; // Don't schedule next poll
+                }
+        
+                // Schedule next poll with adaptive interval
+                scheduleNextPoll();
+        
             } catch (error) {
                 console.error('Polling error:', error);
                 
                 // Don't show error immediately - could be transient
                 if (state.pollCount > 3 && state.status === 'initializing') {
                     showError('Unable to connect to the server. Please check your connection and try again.');
-                    clearInterval(state.pollingInterval);
+                    return; // Don't schedule next poll
                 }
+                
+                // Retry on transient errors
+                scheduleNextPoll();
             }
         }
 
