@@ -505,361 +505,361 @@
         </div>
     </div>
 
-    <script>
-        // ============================================
-        // CONFIGURATION - OPTIMIZED FOR FEWER EXECUTIONS
-        // ============================================
-        const CONFIG = {
-            STATUS_WEBHOOK_URL: 'https://polymash.app.n8n.cloud/webhook/faq-status',
-            MAX_POLL_TIME: 180000,    // 3 minute timeout (was 10 minutes)
-            
-            // Adaptive polling intervals
-            POLLING_PHASES: [
-                { duration: 30000, interval: 5000 },   // First 30s: every 5 seconds
-                { duration: 60000, interval: 10000 },  // 30s-60s: every 10 seconds
-                { duration: Infinity, interval: 15000 } // After 60s: every 15 seconds
-            ]
-        };
+<script>
+    // ============================================
+    // CONFIGURATION - OPTIMIZED FOR FEWER EXECUTIONS
+    // ============================================
+    const CONFIG = {
+        STATUS_WEBHOOK_URL: 'https://polymash.app.n8n.cloud/webhook/faq-status',
+        MAX_POLL_TIME: 180000,    // 3 minute timeout
         
-        // ============================================
-        // STATE
-        // ============================================
-        let state = {
-            jobId: null,
-            status: 'initializing',
-            progress: 0,
-            message: '',
-            html: null,
-            hasAudio: null,
-            startTime: null,
-            pollingTimeout: null,  // Changed from pollingInterval
-            pollCount: 0,
-        };
-        
-        // ============================================
-        // INITIALIZATION
-        // ============================================
-        document.addEventListener('DOMContentLoaded', () => {
-            initializeFromURL();
-        });
-        
-        function initializeFromURL() {
-            const params = new URLSearchParams(window.location.search);
-            state.jobId = params.get('job_id');
-        
-            if (!state.jobId) {
-                showNoJobState();
-                return;
-            }
-        
-            state.startTime = Date.now();
-            pollStatus(); // Start polling immediately
-        }
-        
-        // ============================================
-        // ADAPTIVE POLLING
-        // ============================================
-        function getPollingInterval() {
-            const elapsed = Date.now() - state.startTime;
-            
-            for (const phase of CONFIG.POLLING_PHASES) {
-                if (elapsed < phase.duration) {
-                    return phase.interval;
-                }
-            }
-            
-            // Fallback to last phase interval
-            return CONFIG.POLLING_PHASES[CONFIG.POLLING_PHASES.length - 1].interval;
-        }
-        
-        function scheduleNextPoll() {
-            // Check for timeout
-            if (Date.now() - state.startTime > CONFIG.MAX_POLL_TIME) {
-                showError('Processing is taking longer than expected. Your FAQ may still be generating - please check your email or try refreshing in a few minutes.');
-                return;
-            }
-            
-            const interval = getPollingInterval();
-            state.pollingTimeout = setTimeout(pollStatus, interval);
-        }
-        
-        function stopPolling() {
-            if (state.pollingTimeout) {
-                clearTimeout(state.pollingTimeout);
-                state.pollingTimeout = null;
-            }
-        }
-        
-        async function pollStatus() {
-            state.pollCount++;
-            
-            // Log polling for debugging (can remove in production)
-            const elapsed = Math.round((Date.now() - state.startTime) / 1000);
-            console.log(`Poll #${state.pollCount} at ${elapsed}s (interval: ${getPollingInterval()/1000}s)`);
-            
-            try {
-                const url = `${CONFIG.STATUS_WEBHOOK_URL}?job_id=${encodeURIComponent(state.jobId)}`;
-                
-                const response = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                    },
-                });
-        
-                if (!response.ok) {
-                    if (response.status === 404) {
-                        showExpiredState();
-                        return; // Don't schedule next poll
-                    }
-                    throw new Error(`HTTP ${response.status}`);
-                }
-        
-                const data = await response.json();
-                
-                // Check if job not found
-                if (data.error === 'not_found') {
-                    showExpiredState();
-                    return; // Don't schedule next poll
-                }
-        
-                // Update state from response
-                state.status = data.status || state.status;
-                state.progress = data.progress || state.progress;
-                state.message = data.message || state.message;
-                
-                // Capture has_audio flag (only set once, on first valid response)
-                if (state.hasAudio === null && data.has_audio !== undefined) {
-                    state.hasAudio = data.has_audio;
-                }
-                
-                if (data.html) {
-                    state.html = data.html;
-                }
-        
-                // Update UI
-                updateUI();
-        
-                // Check for completion or error
-                if (state.status === 'complete') {
-                    console.log(`Completed in ${state.pollCount} polls over ${elapsed}s`);
-                    return; // Don't schedule next poll
-                }
-                
-                if (state.status === 'error') {
-                    showError(data.error_message || 'An error occurred during processing.');
-                    return; // Don't schedule next poll
-                }
-        
-                // Schedule next poll with adaptive interval
-                scheduleNextPoll();
-        
-            } catch (error) {
-                console.error('Polling error:', error);
-                
-                // Don't show error immediately - could be transient
-                if (state.pollCount > 3 && state.status === 'initializing') {
-                    showError('Unable to connect to the server. Please check your connection and try again.');
-                    return; // Don't schedule next poll
-                }
-                
-                // Retry on transient errors
-                scheduleNextPoll();
-            }
+        // Adaptive polling intervals
+        POLLING_PHASES: [
+            { duration: 30000, interval: 5000 },   // First 30s: every 5 seconds
+            { duration: 60000, interval: 10000 },  // 30s-60s: every 10 seconds
+            { duration: Infinity, interval: 15000 } // After 60s: every 15 seconds
+        ]
+    };
+
+    // ============================================
+    // STATE
+    // ============================================
+    let state = {
+        jobId: null,
+        status: 'initializing',
+        progress: 0,
+        message: '',
+        html: null,
+        hasAudio: null,
+        startTime: null,
+        pollingTimeout: null,
+        pollCount: 0,
+    };
+
+    // ============================================
+    // INITIALIZATION
+    // ============================================
+    document.addEventListener('DOMContentLoaded', () => {
+        initializeFromURL();
+    });
+
+    function initializeFromURL() {
+        const params = new URLSearchParams(window.location.search);
+        state.jobId = params.get('job_id');
+
+        if (!state.jobId) {
+            showNoJobState();
+            return;
         }
 
-        // ============================================
-        // UI UPDATES
-        // ============================================
-        function updateUI() {
-            // Update title based on status
-            const titles = {
-                initializing: 'Generating Your FAQ',
-                started: 'Generating Your FAQ',
-                processing: 'Generating Your FAQ',
-                complete: 'FAQ Generated!',
-                error: 'Generation Failed',
-            };
-            document.getElementById('title').textContent = titles[state.status] || titles.processing;
+        state.startTime = Date.now();
+        pollStatus();
+    }
 
-            // Update progress bar
-            const progressBar = document.getElementById('progressBar');
-            progressBar.style.width = state.progress + '%';
-            document.getElementById('progressText').textContent = state.message || `${state.progress}% complete`;
+    // ============================================
+    // LIFECYCLE & CLEANUP
+    // ============================================
+    window.addEventListener('beforeunload', cleanup);
+    window.addEventListener('pagehide', cleanup);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
-            // Update status messages
-            updateStatusMessages();
+    function cleanup() {
+        console.log('Cleaning up polling...');
+        stopPolling();
+    }
 
-            // Show results if complete
-            if (state.status === 'complete' && state.html) {
-                showResults();
+    function handleVisibilityChange() {
+        if (document.hidden) {
+            console.log('Tab hidden - pausing polling');
+            stopPolling();
+        } else {
+            // Resume if job is still in progress
+            if (state.jobId && !['complete', 'error'].includes(state.status)) {
+                console.log('Tab visible - resuming polling');
+                pollStatus();
             }
         }
+    }
 
-        function updateStatusMessages() {
-            const container = document.getElementById('statusMessages');
+    // ============================================
+    // ADAPTIVE POLLING
+    // ============================================
+    function getPollingInterval() {
+        const elapsed = Date.now() - state.startTime;
+        
+        for (const phase of CONFIG.POLLING_PHASES) {
+            if (elapsed < phase.duration) {
+                return phase.interval;
+            }
+        }
+        
+        return CONFIG.POLLING_PHASES[CONFIG.POLLING_PHASES.length - 1].interval;
+    }
+
+    function scheduleNextPoll() {
+        // Check for timeout
+        if (Date.now() - state.startTime > CONFIG.MAX_POLL_TIME) {
+            showError('Processing is taking longer than expected. Your FAQ may still be generating - please check your email or try refreshing in a few minutes.');
+            return;
+        }
+        
+        const interval = getPollingInterval();
+        state.pollingTimeout = setTimeout(pollStatus, interval);
+    }
+
+    function stopPolling() {
+        if (state.pollingTimeout) {
+            clearTimeout(state.pollingTimeout);
+            state.pollingTimeout = null;
+        }
+    }
+
+    async function pollStatus() {
+        state.pollCount++;
+        
+        const elapsed = Math.round((Date.now() - state.startTime) / 1000);
+        console.log(`Poll #${state.pollCount} at ${elapsed}s (next in ${getPollingInterval()/1000}s)`);
+        
+        try {
+            const url = `${CONFIG.STATUS_WEBHOOK_URL}?job_id=${encodeURIComponent(state.jobId)}`;
             
-            // Define ALL steps - transcription steps marked with audioOnly flag
-            const allSteps = [
-                { threshold: 5, label: 'Form received', audioOnly: false },
-                { threshold: 10, label: 'Checking for audio content', audioOnly: false },
-                { threshold: 15, label: 'Starting audio transcription', audioOnly: true },
-                { threshold: 25, label: 'Transcribing audio', audioOnly: true },
-                { threshold: 40, label: 'Transcription complete', audioOnly: true },
-                { threshold: 50, label: 'Scraping episode page', audioOnly: false },
-                { threshold: 60, label: 'Analyzing podcast homepage', audioOnly: false },
-                { threshold: 70, label: 'Gathering about page info', audioOnly: false },
-                { threshold: 80, label: 'Preparing FAQ data', audioOnly: false },
-                { threshold: 90, label: 'Generating FAQ with AI', audioOnly: false },
-                { threshold: 100, label: 'Complete!', audioOnly: false },
-            ];
-
-            // Filter steps based on whether job has audio
-            // If hasAudio is null (not yet known), show all steps
-            // If hasAudio is false, filter out audioOnly steps
-            const steps = allSteps.filter(step => {
-                if (state.hasAudio === false && step.audioOnly) {
-                    return false;
-                }
-                return true;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                },
             });
 
-            // Find which steps are complete, active, or pending
-            let html = '';
-            let foundActive = false;
-
-            for (let i = 0; i < steps.length; i++) {
-                const step = steps[i];
-                const nextThreshold = steps[i + 1]?.threshold || 101;
-                
-                let statusClass, icon;
-
-                if (state.progress >= nextThreshold) {
-                    // This step is complete
-                    statusClass = 'complete';
-                    icon = '✓';
-                } else if (state.progress >= step.threshold && !foundActive) {
-                    // This is the active step
-                    statusClass = 'active';
-                    icon = '<span class="spinner"></span>';
-                    foundActive = true;
-                } else if (foundActive || state.progress < step.threshold) {
-                    // Skip pending steps - only show completed and active
-                    continue;
+            if (!response.ok) {
+                if (response.status === 404) {
+                    showExpiredState();
+                    return;
                 }
-
-                html += `
-                    <div class="status-message ${statusClass}">
-                        <span class="status-icon ${statusClass}">${icon}</span>
-                        <span>${step.label}</span>
-                    </div>
-                `;
+                throw new Error(`HTTP ${response.status}`);
             }
 
-            container.innerHTML = html || `
-                <div class="status-message active">
-                    <span class="status-icon active"><span class="spinner"></span></span>
-                    <span>Connecting...</span>
+            const data = await response.json();
+            
+            if (data.error === 'not_found') {
+                showExpiredState();
+                return;
+            }
+
+            // Update state
+            state.status = data.status || state.status;
+            state.progress = data.progress || state.progress;
+            state.message = data.message || state.message;
+            
+            if (state.hasAudio === null && data.has_audio !== undefined) {
+                state.hasAudio = data.has_audio;
+            }
+            
+            if (data.html) {
+                state.html = data.html;
+            }
+
+            updateUI();
+
+            // Check for terminal states
+            if (state.status === 'complete') {
+                console.log(`✓ Completed in ${state.pollCount} polls over ${elapsed}s`);
+                return;
+            }
+            
+            if (state.status === 'error') {
+                showError(data.error_message || 'An error occurred during processing.');
+                return;
+            }
+
+            scheduleNextPoll();
+
+        } catch (error) {
+            console.error('Polling error:', error);
+            
+            if (state.pollCount > 3 && state.status === 'initializing') {
+                showError('Unable to connect to the server. Please check your connection and try again.');
+                return;
+            }
+            
+            scheduleNextPoll();
+        }
+    }
+
+    // ============================================
+    // UI UPDATES
+    // ============================================
+    function updateUI() {
+        const titles = {
+            initializing: 'Generating Your FAQ',
+            started: 'Generating Your FAQ',
+            processing: 'Generating Your FAQ',
+            complete: 'FAQ Generated!',
+            error: 'Generation Failed',
+        };
+        document.getElementById('title').textContent = titles[state.status] || titles.processing;
+
+        const progressBar = document.getElementById('progressBar');
+        progressBar.style.width = state.progress + '%';
+        document.getElementById('progressText').textContent = state.message || `${state.progress}% complete`;
+
+        updateStatusMessages();
+
+        if (state.status === 'complete' && state.html) {
+            showResults();
+        }
+    }
+
+    function updateStatusMessages() {
+        const container = document.getElementById('statusMessages');
+        
+        const allSteps = [
+            { threshold: 5, label: 'Form received', audioOnly: false },
+            { threshold: 10, label: 'Checking for audio content', audioOnly: false },
+            { threshold: 15, label: 'Starting audio transcription', audioOnly: true },
+            { threshold: 25, label: 'Transcribing audio', audioOnly: true },
+            { threshold: 40, label: 'Transcription complete', audioOnly: true },
+            { threshold: 50, label: 'Scraping episode page', audioOnly: false },
+            { threshold: 60, label: 'Analyzing podcast homepage', audioOnly: false },
+            { threshold: 70, label: 'Gathering about page info', audioOnly: false },
+            { threshold: 80, label: 'Preparing FAQ data', audioOnly: false },
+            { threshold: 90, label: 'Generating FAQ with AI', audioOnly: false },
+            { threshold: 100, label: 'Complete!', audioOnly: false },
+        ];
+
+        const steps = allSteps.filter(step => {
+            if (state.hasAudio === false && step.audioOnly) {
+                return false;
+            }
+            return true;
+        });
+
+        let html = '';
+        let foundActive = false;
+
+        for (let i = 0; i < steps.length; i++) {
+            const step = steps[i];
+            const nextThreshold = steps[i + 1]?.threshold || 101;
+            
+            let statusClass, icon;
+
+            if (state.progress >= nextThreshold) {
+                statusClass = 'complete';
+                icon = '✓';
+            } else if (state.progress >= step.threshold && !foundActive) {
+                statusClass = 'active';
+                icon = '<span class="spinner"></span>';
+                foundActive = true;
+            } else if (foundActive || state.progress < step.threshold) {
+                continue;
+            }
+
+            html += `
+                <div class="status-message ${statusClass}">
+                    <span class="status-icon ${statusClass}">${icon}</span>
+                    <span>${step.label}</span>
                 </div>
             `;
         }
 
-        function showResults() {
-            // Hide progress section
-            document.getElementById('progressSection').style.display = 'none';
-            document.getElementById('statusMessages').style.display = 'none';
+        container.innerHTML = html || `
+            <div class="status-message active">
+                <span class="status-icon active"><span class="spinner"></span></span>
+                <span>Connecting...</span>
+            </div>
+        `;
+    }
 
-            // Show results
-            const resultsSection = document.getElementById('resultsSection');
-            resultsSection.classList.add('show');
+    function showResults() {
+        document.getElementById('progressSection').style.display = 'none';
+        document.getElementById('statusMessages').style.display = 'none';
 
-            // Render the HTML
-            document.getElementById('renderedView').innerHTML = state.html;
-            document.getElementById('codeContent').textContent = state.html;
+        const resultsSection = document.getElementById('resultsSection');
+        resultsSection.classList.add('show');
 
-            // Show close button
-            document.getElementById('actionButtons').style.display = 'flex';
-        }
+        document.getElementById('renderedView').innerHTML = state.html;
+        document.getElementById('codeContent').textContent = state.html;
 
-        function showNoJobState() {
-            document.getElementById('progressSection').style.display = 'none';
-            document.getElementById('statusMessages').style.display = 'none';
-            document.getElementById('noJobState').classList.add('show');
-        }
+        document.getElementById('actionButtons').style.display = 'flex';
+    }
 
-        function showExpiredState() {
-            document.getElementById('progressSection').style.display = 'none';
-            document.getElementById('statusMessages').style.display = 'none';
-            document.getElementById('expiredState').classList.add('show');
-            document.getElementById('actionButtons').style.display = 'flex';
-        }
+    function showNoJobState() {
+        document.getElementById('progressSection').style.display = 'none';
+        document.getElementById('statusMessages').style.display = 'none';
+        document.getElementById('noJobState').classList.add('show');
+    }
 
-        function showError(message) {
-            document.getElementById('progressSection').style.display = 'none';
-            document.getElementById('statusMessages').style.display = 'none';
-            document.getElementById('errorState').classList.add('show');
-            document.getElementById('errorMessage').textContent = message;
-            document.getElementById('actionButtons').style.display = 'flex';
-        }
+    function showExpiredState() {
+        document.getElementById('progressSection').style.display = 'none';
+        document.getElementById('statusMessages').style.display = 'none';
+        document.getElementById('expiredState').classList.add('show');
+        document.getElementById('actionButtons').style.display = 'flex';
+    }
 
-        // ============================================
-        // VIEW TOGGLE
-        // ============================================
-        function showRenderedView() {
-            document.getElementById('renderedView').classList.remove('hide');
-            document.getElementById('codeView').classList.remove('show');
-            document.querySelectorAll('.view-toggle button').forEach(btn => btn.classList.remove('active'));
-            document.querySelector('.view-toggle button:first-child').classList.add('active');
-        }
+    function showError(message) {
+        document.getElementById('progressSection').style.display = 'none';
+        document.getElementById('statusMessages').style.display = 'none';
+        document.getElementById('errorState').classList.add('show');
+        document.getElementById('errorMessage').textContent = message;
+        document.getElementById('actionButtons').style.display = 'flex';
+    }
 
-        function showCodeView() {
-            document.getElementById('renderedView').classList.add('hide');
-            document.getElementById('codeView').classList.add('show');
-            document.querySelectorAll('.view-toggle button').forEach(btn => btn.classList.remove('active'));
-            document.querySelector('.view-toggle button:last-child').classList.add('active');
-        }
+    // ============================================
+    // VIEW TOGGLE
+    // ============================================
+    function showRenderedView() {
+        document.getElementById('renderedView').classList.remove('hide');
+        document.getElementById('codeView').classList.remove('show');
+        document.querySelectorAll('.view-toggle button').forEach(btn => btn.classList.remove('active'));
+        document.querySelector('.view-toggle button:first-child').classList.add('active');
+    }
 
-        // ============================================
-        // COPY & DOWNLOAD
-        // ============================================
-        function copyHTML() {
-            navigator.clipboard.writeText(state.html).then(() => {
-                const btn = document.getElementById('copyBtn');
-                const originalText = btn.textContent;
-                btn.textContent = '✓ Copied!';
-                btn.style.background = '#0379C4';
-                setTimeout(() => {
-                    btn.textContent = originalText;
-                    btn.style.background = '';
-                }, 2000);
-            }).catch(err => {
-                // Fallback for older browsers
-                const textarea = document.createElement('textarea');
-                textarea.value = state.html;
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
-                
-                const btn = document.getElementById('copyBtn');
-                btn.textContent = '✓ Copied!';
-                setTimeout(() => {
-                    btn.textContent = 'Copy HTML';
-                }, 2000);
-            });
-        }
+    function showCodeView() {
+        document.getElementById('renderedView').classList.add('hide');
+        document.getElementById('codeView').classList.add('show');
+        document.querySelectorAll('.view-toggle button').forEach(btn => btn.classList.remove('active'));
+        document.querySelector('.view-toggle button:last-child').classList.add('active');
+    }
 
-        function downloadHTML() {
-            const blob = new Blob([state.html], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `faq-${state.jobId}.html`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-    </script>
+    // ============================================
+    // COPY & DOWNLOAD
+    // ============================================
+    function copyHTML() {
+        navigator.clipboard.writeText(state.html).then(() => {
+            const btn = document.getElementById('copyBtn');
+            const originalText = btn.textContent;
+            btn.textContent = '✓ Copied!';
+            btn.style.background = '#0379C4';
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.style.background = '';
+            }, 2000);
+        }).catch(err => {
+            const textarea = document.createElement('textarea');
+            textarea.value = state.html;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            
+            const btn = document.getElementById('copyBtn');
+            btn.textContent = '✓ Copied!';
+            setTimeout(() => {
+                btn.textContent = 'Copy HTML';
+            }, 2000);
+        });
+    }
+
+    function downloadHTML() {
+        const blob = new Blob([state.html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `faq-${state.jobId}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+</script>
 </body>
 </html>
